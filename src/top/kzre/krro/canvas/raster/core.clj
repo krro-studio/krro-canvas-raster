@@ -7,8 +7,8 @@
     [top.kzre.krro.canvas.raster.spec])
   (:import
     (java.util Collection HashSet UUID)
-    (top.kzre.krro.canvas.raster TiledCanvasRenderer)
-    (top.kzre.krro.util.tile TiledCanvas)))
+    (top.kzre.krro.canvas.core.layer PixelBlitter)
+    (top.kzre.krro.util.tile AntiAlias Canvas TiledCanvas)))
 
 (defn make-raster-layer
   "创建一个光栅图层，包含一个 TiledCanvas 画布。
@@ -44,15 +44,14 @@
 
 
 (defmethod c/render-layer! :raster
-  [layer ^floats data w h {:keys [dirty-tiles] :as opts}]
-  (let [canvas      (:canvas layer)                 ; TiledCanvas 实例
-        blend-mode  (lu/blend-mode-str (:blend-mode layer) :normal)
-        opacity     (float (get layer :opacity 1.0))
-        transform   (:transform layer lu/identity-matrix)
-        matrix2d      (float-array transform)
-        java-dirty  (when (seq dirty-tiles)
-                      (HashSet. ^Collection dirty-tiles))]
-    (TiledCanvasRenderer/blendTransformedTiled data (int w) (int h)
-                                               canvas
-                                               matrix2d blend-mode opacity
-                                               java-dirty)))
+  [layer ^Canvas dest-canvas w h {:keys [dirty-tiles] :as opts}]
+  (let [src-canvas (:canvas layer)                 ; 源 TiledCanvas
+        blend-mode (lu/blend-mode-str (:blend-mode layer) :normal)
+        opacity    (float (get layer :opacity 1.0))
+        transform  (get layer :transform lu/identity-matrix)
+        matrix2d   (float-array transform)
+        java-dirty (when (seq dirty-tiles)
+                     (HashSet. ^Collection dirty-tiles))]
+    (PixelBlitter/blit dest-canvas w h src-canvas
+                       matrix2d blend-mode opacity
+                       (AntiAlias/ssaa2x2) java-dirty)))
