@@ -19,16 +19,16 @@
      :name        - 图层名称（默认 \"Raster Layer\"）
      :opacity     - 不透明度 0.0~1.0（默认 1.0）
      :blend-mode  - 混合模式关键字（默认 :normal）
-     :visible?    - 是否可见（默认 true）
+     :visible    - 是否可见（默认 true）
      :backend     - 渲染后端（默认 :default）
 
      其他变换属性 :x, :y, :scale-x, :scale-y, :rotation 等"
-  [tile-size & {:keys [id name opacity blend-mode visible? backend ]
+  [tile-size & {:keys [id name opacity blend-mode visible backend ]
       :or   {id         (keyword (str "layer-" (UUID/randomUUID)))
              name       "Raster Layer"
              opacity    1.0
              blend-mode :normal
-             visible?   true
+             visible   true
              backend    :default}
       :as   opts}]
   (let [canvas (TiledCanvas. tile-size (float-array [0.0 0.0 0.0 0.0]))]
@@ -37,7 +37,7 @@
             :name       name
             :opacity    opacity
             :blend-mode blend-mode
-            :visible?   visible?
+            :visible   visible
             :backend    backend
             :canvas     canvas}
            (select-keys opts [:x :y :scale-x :scale-y :rotation :mask]))))
