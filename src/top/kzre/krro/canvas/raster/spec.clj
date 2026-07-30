@@ -11,7 +11,6 @@
 ;; 瓦片键：位编码后的 long，兼容任意整数值
 (s/def ::tile-key integer?)
 
-
 (s/def ::origin-x int?)
 (s/def ::origin-y int?)
 

@@ -3,6 +3,7 @@
    提供激活光栅后端的便捷函数，替换 *merge-layer!* 并注册 :raster 图层。"
   (:require
     [top.kzre.krro.canvas.core.core :as c]
+    [taoensso.tufte :as p]
     [top.kzre.krro.canvas.core.layer.util :as lu]
     [top.kzre.krro.canvas.raster.spec])
   (:import
@@ -44,7 +45,10 @@
 
 
 (defmethod c/render-layer! :raster
-  [layer ^Canvas dest-canvas w h {:keys [dirty-tiles] :as opts}]
+  [layer ^Canvas dest-canvas w h {:keys [dirty-tiles
+                                         enable-subpixel?] :as opts
+                                  :or {enable-subpixel? false ;; 默认不开启亚像素
+                                       }}]
   (let [src-canvas (:canvas layer)                 ; 源 TiledCanvas
         blend-mode (lu/blend-mode-str (:blend-mode layer) :normal)
         opacity    (float (get layer :opacity 1.0))
@@ -52,6 +56,10 @@
         matrix2d   (float-array transform)
         java-dirty (when (seq dirty-tiles)
                      (HashSet. ^Collection dirty-tiles))]
-    (PixelBlitter/blit dest-canvas w h src-canvas
-                       matrix2d blend-mode opacity
-                       (AntiAlias/ssaa2x2) java-dirty)))
+    (p/profile {:id :render-layer}
+               (p/p :blit-canvas
+                    ;; TODO 全局抗锯齿标志
+                 (PixelBlitter/blit dest-canvas w h src-canvas
+                                    matrix2d blend-mode opacity
+                                    (AntiAlias/ssaa2x2) java-dirty
+                                    enable-subpixel?)))))
