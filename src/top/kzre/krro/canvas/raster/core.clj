@@ -2,14 +2,17 @@
   "光栅图层实现：通过画布 API 获取底层数组进行批量渲染，提升性能。
    提供激活光栅后端的便捷函数，替换 *merge-layer!* 并注册 :raster 图层。"
   (:require
-    [top.kzre.krro.canvas.core.core :as c]
-    [taoensso.tufte :as p]
-    [top.kzre.krro.canvas.core.layer.util :as lu]
-    [top.kzre.krro.canvas.raster.spec])
+   [taoensso.tufte :as p]
+   [top.kzre.krro.canvas.core.core :as c]
+   [top.kzre.krro.canvas.core.layer.render.composite :as composite]
+   [top.kzre.krro.canvas.core.layer.util :as lu]
+   [top.kzre.krro.canvas.raster.spec]
+   [top.kzre.krro.core.util.promise :as promise])
   (:import
-    (java.util Collection HashSet UUID)
-    (top.kzre.krro.canvas.core.layer PixelBlitter)
-    (top.kzre.krro.util.tile AntiAlias Canvas TiledCanvas)))
+   (java.util UUID)
+   (top.kzre.colorutils.color RGB)
+   (top.kzre.krro.canvas.core.layer PixelBlitter)
+   (top.kzre.krro.util.tile TiledCanvas)))
 
 (defn make-raster-layer
   "创建一个光栅图层，包含一个 TiledCanvas 画布。
@@ -32,7 +35,7 @@
              visible   true
              backend    :default}
       :as   opts}]
-  (let [canvas (TiledCanvas. tile-size (float-array [0.0 0.0 0.0 0.0]))]
+  (let [canvas (TiledCanvas. tile-size (RGB/rgba 0 0 0 0))]
     (merge {:id         id
             :type       :raster
             :name       name
@@ -45,21 +48,41 @@
 
 
 (defmethod c/render-layer! :raster
-  [layer ^Canvas dest-canvas w h {:keys [dirty-tiles
-                                         enable-subpixel?] :as opts
-                                  :or {enable-subpixel? false ;; 默认不开启亚像素
-                                       }}]
+  [layer dest-canvas view-width view-height
+   {:keys [dirty-tiles subpixel?]
+    :or {subpixel? false
+         }}]
   (let [src-canvas (:canvas layer)                 ; 源 TiledCanvas
         blend-mode (lu/blend-mode-str (:blend-mode layer) :normal)
         opacity    (float (get layer :opacity 1.0))
         transform  (get layer :transform lu/identity-matrix)
-        matrix2d   (float-array transform)
-        java-dirty (when (seq dirty-tiles)
-                     (HashSet. ^Collection dirty-tiles))]
+        matrix2d   (float-array transform)]
     (p/profile {:id :render-layer}
                (p/p :blit-canvas
-                    ;; TODO 全局抗锯齿标志
-                 (PixelBlitter/blit dest-canvas w h src-canvas
+                 (PixelBlitter/blit dest-canvas view-width view-height src-canvas
                                     matrix2d blend-mode opacity
-                                    (AntiAlias/ssaa2x2) java-dirty
-                                    enable-subpixel?)))))
+                                    dirty-tiles
+                                    subpixel?)))))
+
+
+(defmethod composite/composite-layer :raster
+  [layer ^TiledCanvas canvas
+   {:keys [view-width view-height dirty-tiles subpixel?]
+    :or   {subpixel? false}}]
+  (let [src-canvas (:canvas layer)
+        blend-mode (lu/blend-mode-str (:blend-mode layer) :normal)
+        opacity    (float (get layer :opacity 1.0))
+        transform  (get layer :transform lu/identity-matrix)
+        matrix2d   (float-array transform)]
+    (try
+      (p/profile {:id :composite-layer}
+                 (p/p :blit-canvas
+                      (PixelBlitter/blit canvas view-width view-height src-canvas
+                                         matrix2d blend-mode opacity
+                                         dirty-tiles
+                                         subpixel?)))
+      ;; 原地写成功：返回同一个 canvas，所有权不动
+      (promise/resolved canvas)
+      (catch Throwable e
+        ;; 失败：canvas 归 render-batch 所有，由它统一清；此处只透传异常
+        (promise/rejected e)))))
