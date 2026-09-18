@@ -3,7 +3,6 @@
    提供激活光栅后端的便捷函数，替换 *merge-layer!* 并注册 :raster 图层。"
   (:require
    [taoensso.tufte :as p]
-   [top.kzre.krro.canvas.core.core :as c]
    [top.kzre.krro.canvas.core.layer.render.composite :as composite]
    [top.kzre.krro.canvas.core.layer.util :as lu]
    [top.kzre.krro.canvas.raster.spec]
@@ -47,27 +46,10 @@
            (select-keys opts [:x :y :scale-x :scale-y :rotation :mask]))))
 
 
-(defmethod c/render-layer! :raster
-  [layer dest-canvas view-width view-height
-   {:keys [dirty-tiles subpixel?]
-    :or {subpixel? false
-         }}]
-  (let [src-canvas (:canvas layer)                 ; 源 TiledCanvas
-        blend-mode (lu/blend-mode-str (:blend-mode layer) :normal)
-        opacity    (float (get layer :opacity 1.0))
-        transform  (get layer :transform lu/identity-matrix)
-        matrix2d   (float-array transform)]
-    (p/profile {:id :render-layer}
-               (p/p :blit-canvas
-                 (PixelBlitter/blit dest-canvas view-width view-height src-canvas
-                                    matrix2d blend-mode opacity
-                                    dirty-tiles
-                                    subpixel?)))))
-
-
 (defmethod composite/composite-layer :raster
   [layer ^TiledCanvas canvas
-   {:keys [view-width view-height dirty-tiles subpixel?]
+   {:keys [view-width view-height
+           dirty-tiles subpixel?]
     :or   {subpixel? false}}]
   (let [src-canvas (:canvas layer)
         blend-mode (lu/blend-mode-str (:blend-mode layer) :normal)
