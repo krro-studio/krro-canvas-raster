@@ -26,24 +26,33 @@
      :backend     - 渲染后端（默认 :default）
 
      其他变换属性 :x, :y, :scale-x, :scale-y, :rotation 等"
-  [tile-size & {:keys [id name opacity blend-mode visible backend ]
-      :or   {id         (keyword (str "layer-" (UUID/randomUUID)))
-             name       "Raster Layer"
-             opacity    1.0
-             blend-mode :normal
-             visible   true
-             backend    :default}
-      :as   opts}]
-  (let [canvas (TiledCanvas. tile-size (RGB/rgba 0 0 0 0))]
-    (merge {:id         id
-            :type       :raster
-            :name       name
-            :opacity    opacity
-            :blend-mode blend-mode
-            :visible   visible
-            :backend    backend
-            :canvas     canvas}
-           (select-keys opts [:x :y :scale-x :scale-y :rotation :mask]))))
+  ([tile-size & {:keys [id name opacity blend-mode visible backend canvas
+                        channels]
+                 :or   {id         (keyword (str "layer-" (UUID/randomUUID)))
+                        name       "Raster Layer"
+                        opacity    1.0
+                        blend-mode :normal
+                        visible   true
+                        backend    :default
+                        ;; 默认 4 通道。即 RGBA
+                        channels 4}
+                 :as   opts}]
+   (let [canvas (or (when canvas
+                      (let [actual-tile-size (.getTileSize ^TiledCanvas canvas)]
+                        (when-not (= actual-tile-size tile-size)
+                          (throw (ex-info "unmatched tile-size" {})))
+                        canvas))
+                    (TiledCanvas. tile-size
+                                  (float-array (repeat channels 0))))]
+     (merge {:id         id
+             :type       :raster
+             :name       name
+             :opacity    opacity
+             :blend-mode blend-mode
+             :visible   visible
+             :backend    backend
+             :canvas     canvas}
+            (select-keys opts [:x :y :scale-x :scale-y :rotation :mask])))))
 
 
 (defmethod composite/composite-layer :raster
